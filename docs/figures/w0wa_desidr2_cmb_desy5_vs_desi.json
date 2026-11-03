@@ -1,0 +1,93 @@
+{
+ "parameters": {
+  "w": {
+   "gpucosmo_mean": -0.7531091191122861,
+   "gpucosmo_sd": 0.056691204827212564,
+   "desi_mean": -0.7520679982018754,
+   "desi_sd": 0.057206253775028505,
+   "shift_in_desi_sd": -0.01819942474305334,
+   "sd_ratio": 0.9909966321192533
+  },
+  "wa": {
+   "gpucosmo_mean": -0.8530096621594497,
+   "gpucosmo_sd": 0.22108170549442213,
+   "desi_mean": -0.8611043418200023,
+   "desi_sd": 0.22127931535585998,
+   "shift_in_desi_sd": 0.0365812757850174,
+   "sd_ratio": 0.999106966409761
+  },
+  "omegam": {
+   "gpucosmo_mean": 0.3189206923896913,
+   "gpucosmo_sd": 0.0055932929694701376,
+   "desi_mean": 0.31906417627479033,
+   "desi_sd": 0.005619591406421585,
+   "shift_in_desi_sd": -0.025532796732354666,
+   "sd_ratio": 0.9953202225839061
+  },
+  "H0": {
+   "gpucosmo_mean": 66.73838793156091,
+   "gpucosmo_sd": 0.5587966206061503,
+   "desi_mean": 66.73974666655444,
+   "desi_sd": 0.5604872493647647,
+   "shift_in_desi_sd": -0.002424203217951192,
+   "sd_ratio": 0.9969836445690237
+  }
+ },
+ "evidence": {
+  "dali_order": 4,
+  "logz_w0wa": -6375.631898007538,
+  "logz_w0wa_err": 0.00806271092873641,
+  "logz_lcdm": -6379.766566522978,
+  "logz_lcdm_err": 0.008901338864283868,
+  "dlnz": 4.134668515439444,
+  "dlnz_err": 0.01201004334285168,
+  "bayes_factor": 62.46888016869191,
+  "p_sellke": 0.00083014979742788,
+  "n_sigma_sellke": 3.3425413704451543,
+  "order_check": {
+   "lower_order": 3,
+   "dlogz_w0wa": 0.038187825569981786,
+   "dlogz_lcdm": 0.020296397285023235,
+   "dlnz_change": 0.01789142828495855,
+   "max_mean_shift_sigma_w0wa": 0.01049611113613727,
+   "mean_shift_sigma_w0wa": {
+    "w": -0.00362625900368911,
+    "wa": 0.007046683486077948
+   }
+  }
+ },
+ "map": {
+  "w0wa": {
+   "chi2": {
+    "sn": 1637.5080581962345,
+    "bao.desi_dr2.desi_bao_all": 8.831584217819007,
+    "planck_NPIPE_highl_CamSpec.TTTEEE": 10542.235756032169,
+    "planck_2018_lowl.TT_clik": 23.215580454182202,
+    "planck_2018_lowl.EE_clik": 397.01618890440875,
+    "act_dr6_lenslike.ACTDR6LensLike": 19.669678218403376
+   },
+   "chi2_total": 12628.476846023217,
+   "minus2_logpost": 12628.866893405939,
+   "minus2_logprior": 0.38910555684845294
+  },
+  "lcdm": {
+   "chi2": {
+    "sn": 1648.4123822741803,
+    "bao.desi_dr2.desi_bao_all": 14.432493418368113,
+    "planck_NPIPE_highl_CamSpec.TTTEEE": 10544.080637468258,
+    "planck_2018_lowl.TT_clik": 22.97596933252271,
+    "planck_2018_lowl.EE_clik": 399.0191138759305,
+    "act_dr6_lenslike.ACTDR6LensLike": 20.19457428617732
+   },
+   "chi2_total": 12649.115170655437,
+   "minus2_logpost": 12649.905916251188,
+   "minus2_logprior": 0.7907034280485351
+  },
+  "dchi2_loglike": -20.638324632220247,
+  "dchi2_logpost": -21.039022845248837,
+  "p_loglike": 3.299474287158607e-05,
+  "n_sigma_loglike": 4.15174663499124,
+  "p_logpost": 2.7004381627551457e-05,
+  "n_sigma_logpost": 4.197360564032181
+ }
+}

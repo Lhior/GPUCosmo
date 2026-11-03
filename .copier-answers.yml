@@ -1,0 +1,18 @@
+# Changes here will be overwritten by Copier
+_commit: v2.2.0
+_src_path: gh:lincc-frameworks/python-project-template
+author_email: lhior@users.noreply.github.com
+author_name: lhior
+custom_install: retrofit
+include_docs: true
+include_notebooks: false
+package_name: gpucosmo
+project_description: CCL and JAX galaxy-galaxy lensing Cobaya likelihoods
+project_license: MIT
+project_name: GPUCosmo
+project_organization: lhior
+python_versions:
+- '3.10'
+- '3.11'
+- '3.12'
+- '3.13'

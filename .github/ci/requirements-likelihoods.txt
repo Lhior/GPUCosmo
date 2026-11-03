@@ -1,0 +1,23 @@
+# External likelihood packages the tests port or compare against (Cobaya external likelihoods).
+# Installed in CI's data jobs so their tests run instead of skipping; pinned to the
+# versions/commits of the reference environment (2026-10-23).
+act_dr6_cmbonly @ git+https://github.com/ACTCollaboration/DR6-ACT-lite@627aeafb88ae5ad1aa66b406bea2d65cfa66a27d
+act_dr6_lenslike @ git+https://github.com/ACTCollaboration/act_dr6_lenslike@5d54308ec60acbf545fd4e46a10091cc6f8a2237
+act_dr6_mflike @ git+https://github.com/ACTCollaboration/act_dr6_mflike@4220e14efb3a995f47c9f54cb687479e558c6138
+mflike==1.0.2
+pyactlike @ git+https://github.com/ACTCollaboration/pyactlike@1cac8c5d047bc2cad991890f2ebf1d8e3fb483b3
+plikmflike @ git+https://github.com/simonsobs/LAT_MFLike@3ddefa827830d3d3815aa7c0fb97b97174424a49
+candl_like @ git+https://github.com/Lbalkenhol/candl.git@650db0a6a0a2febed1e57350f0b991b537a4d2f7
+candl_data @ git+https://github.com/Lbalkenhol/candl_data.git@c4eb8fbc5b0eb259ba487494b3cff918eac5c47a
+spt_candl_data @ git+https://github.com/SouthPoleTelescope/spt_candl_data@f22611a9671d50af6135f048a2ea3f43ef4c2f62
+spt @ git+https://github.com/xgarrido/spt_likelihoods@02e019d33379942b4602c80a7e9239bf8e7e3688
+planck_2020_lollipop @ git+https://github.com/planck-npipe/lollipop@768a2b045b5ad633af29e992d66ae9b88a3f09fa
+plancklensing @ git+https://github.com/CobayaSampler/planck_lensing_external@67b3e4fc0eb8453d81c5df8e504b20635a9fbef1
+planckpr4lensing @ git+https://github.com/carronj/planck_PR4_lensing@e08f1dc256f0c442662a708eb22e2cb488408fee
+cobaya_mock_cmb @ git+https://github.com/misharash/cobaya_mock_cmb@fa52761ca46e44a1c1e5bd0df721be9b1c53bdd0
+hd_mock_data @ git+https://github.com/CMB-HD/hdMockData.git@9746eeec73bd85ba940ceebebdba4d7d300cce50
+wmaplike @ git+https://github.com/HTJense/pyWMAP@c1adc0eca8551b87085c3eb1754c3d7d8d04faa0
+cobaya_lya_p1d @ git+https://github.com/igmhub/cobaya_lya_p1d@37f9793de662f147142c43c47eebc140c27945bc
+lenstronomy==1.14.1
+# pyactlike imports pkg_resources at runtime (removed from setuptools 81)
+setuptools<81

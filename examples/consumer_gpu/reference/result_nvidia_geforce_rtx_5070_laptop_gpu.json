@@ -1,0 +1,202 @@
+{
+ "environment": {
+  "python": "3.13.7",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "jax": "0.10.1",
+  "jaxlib": "0.10.1",
+  "numpy": "2.4.6",
+  "backend": "gpu",
+  "device": "NVIDIA GeForce RTX 5070 Laptop GPU",
+  "n_devices": 1,
+  "cpu_count": 20,
+  "loadavg_1_5_15min": [
+   3.9326171875,
+   12.931640625,
+   10.36767578125
+  ],
+  "gpucosmo": "0.1.dev45+g9c910a3f1.d20261101",
+  "git_commit": "3efac5dc63458cf37b6690532dfaee6c34348ba0",
+  "git_dirty": false,
+  "nvidia_smi": "NVIDIA GeForce RTX 5070 Laptop GPU, 8151 MiB, 617.14",
+  "sources_dtype": "float32",
+  "source_failure_policy": "reject"
+ },
+ "settings": {
+  "_comment": "Pinned settings of examples/consumer_gpu. Changing any of them invalidates the reference results.",
+  "lmax": 2508,
+  "nonlinear_lens": false,
+  "accurate": true,
+  "cosmologies": {
+   "lcdm_planck18": {
+    "logA": 3.044,
+    "ns": 0.9649,
+    "theta_mc_100": 1.04109,
+    "ombh2": 0.02237,
+    "omch2": 0.12,
+    "tau": 0.0544,
+    "w0": -1.0,
+    "wa": 0.0
+   },
+   "w0wa_desi_like": {
+    "logA": 3.044,
+    "ns": 0.9649,
+    "theta_mc_100": 1.04109,
+    "ombh2": 0.02237,
+    "omch2": 0.12,
+    "tau": 0.0544,
+    "w0": -0.75,
+    "wa": -0.8
+   }
+  },
+  "camb": {
+   "version_required": "2.0",
+   "AccuracyBoost": 2.0,
+   "lSampleBoost": 2.0,
+   "lAccuracyBoost": 2.0,
+   "lens_potential_accuracy": 8,
+   "lens_output_margin": 750,
+   "nonlinear": false,
+   "mnu": 0.06,
+   "num_massive_neutrinos": 1,
+   "nnu": 3.044,
+   "bbn_predictor": "PArthENoPE_880.2_standard.dat",
+   "dark_energy_model": "ppf"
+  },
+  "checks": {
+   "_comment": "Documented accuracy (docs/cobaya.rst, 'Accuracy against CAMB'): lensed TT/EE at l 1000-2508 within 4e-4 of CAMB (+6e-6 for the float32 evolution on GPUs). Other bands are reported, not checked.",
+   "tt_ee_rel_max_l1000_2508": 0.0005
+  },
+  "timing": {
+   "warm_repeats": 5
+  }
+ },
+ "camb_reference": {
+  "file": "examples/consumer_gpu/reference/camb_reference.npz",
+  "camb_version": "2.0.5"
+ },
+ "timing": {
+  "batch": 8,
+  "cold_first_call_s": 136.8574526379998,
+  "warm_s": [
+   1.8790317210005014,
+   1.895822331999625,
+   1.9144220359994506,
+   1.9102616879999914,
+   1.9161570520000168
+  ],
+  "warm_median_s": 1.9102616879999914,
+  "warm_median_per_cosmology_s": 0.23878271099999893,
+  "persistent_compile_cache": null,
+  "loadavg_after_1_5_15min": [
+   5.10205078125,
+   10.162109375,
+   9.720703125
+  ]
+ },
+ "solver_status": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "accuracy_vs_camb": {
+  "lcdm_planck18": {
+   "H0_jax": 67.3214833015422,
+   "H0_camb": 67.32220266035841,
+   "bands": {
+    "2-30": {
+     "tt_rel_max": 0.0006462545501446648,
+     "ee_rel_max": 0.0017889289831101163,
+     "te_rel_max": 0.002386666877498296,
+     "kk_rel_mean": 2.9409037300845717e-05
+    },
+    "30-500": {
+     "tt_rel_max": 0.000856528179751459,
+     "ee_rel_max": 0.0009507414099478861,
+     "te_rel_max": 0.0008516339898350412,
+     "kk_rel_mean": 0.0006368888789524
+    },
+    "500-1000": {
+     "tt_rel_max": 0.0011267440312816568,
+     "ee_rel_max": 0.0011822344358395354,
+     "te_rel_max": 0.0008423283449138346,
+     "kk_rel_mean": 0.0006342827414403741
+    },
+    "1000-1500": {
+     "tt_rel_max": 0.0002495752624731562,
+     "ee_rel_max": 0.00033861398155887734,
+     "te_rel_max": 0.00015998166918893851,
+     "kk_rel_mean": 0.0006336292061109619
+    },
+    "1500-2000": {
+     "tt_rel_max": 0.00010900921898560068,
+     "ee_rel_max": 0.0001574856964010607,
+     "te_rel_max": 5.555046756485881e-05,
+     "kk_rel_mean": 0.0007022128087864082
+    },
+    "2000-2508": {
+     "tt_rel_max": 0.00028239822448727914,
+     "ee_rel_max": 0.0003216169970581273,
+     "te_rel_max": 0.00013919455366195112,
+     "kk_rel_mean": 0.0007563574002052714
+    }
+   },
+   "tt_ee_rel_max_l1000_2508": 0.00033861398155887734,
+   "check_tt_ee_l1000_2508": {
+    "limit": 0.0005,
+    "pass": true
+   }
+  },
+  "w0wa_desi_like": {
+   "H0_jax": 66.14631287287605,
+   "H0_camb": 66.14642377810335,
+   "bands": {
+    "2-30": {
+     "tt_rel_max": 0.0006189278682103838,
+     "ee_rel_max": 0.0017954857397074475,
+     "te_rel_max": 0.0023252716748044964,
+     "kk_rel_mean": 2.466245989825646e-05
+    },
+    "30-500": {
+     "tt_rel_max": 0.000858669142657531,
+     "ee_rel_max": 0.0009398425355295892,
+     "te_rel_max": 0.0007849023351744965,
+     "kk_rel_mean": 0.0006316798096955744
+    },
+    "500-1000": {
+     "tt_rel_max": 0.0011287708208249647,
+     "ee_rel_max": 0.0011673979294389847,
+     "te_rel_max": 0.0008481236841531176,
+     "kk_rel_mean": 0.0006291114966290684
+    },
+    "1000-1500": {
+     "tt_rel_max": 0.0002532943800653831,
+     "ee_rel_max": 0.00034819179461964556,
+     "te_rel_max": 0.00017145978413425663,
+     "kk_rel_mean": 0.000628752779639147
+    },
+    "1500-2000": {
+     "tt_rel_max": 0.00010981457883707524,
+     "ee_rel_max": 0.0001330021429297723,
+     "te_rel_max": 6.583874288980844e-05,
+     "kk_rel_mean": 0.0006972655064641529
+    },
+    "2000-2508": {
+     "tt_rel_max": 0.00028858312013058107,
+     "ee_rel_max": 0.0003169017000230756,
+     "te_rel_max": 0.0001347419210248543,
+     "kk_rel_mean": 0.0007526748771265563
+    }
+   },
+   "tt_ee_rel_max_l1000_2508": 0.00034819179461964556,
+   "check_tt_ee_l1000_2508": {
+    "limit": 0.0005,
+    "pass": true
+   }
+  }
+ }
+}

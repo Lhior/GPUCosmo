@@ -1,0 +1,19 @@
+# A minimal GPUCosmo likelihood plug-in. `pip install .` makes its likelihood selectable by
+# name in any Cobaya yaml run with GPUCosmo (no --plugin flag): the entry point below
+# registers it.
+[project]
+name = "gpucosmo-example-plugin"
+version = "0.1.0"
+description = "Example GPUCosmo likelihood plug-in (a Gaussian measurement of r_d h)"
+requires-python = ">=3.10"
+dependencies = ["GPUCosmo"]
+
+[project.entry-points."gpucosmo.likelihoods"]
+rdh_gaussian = "gpucosmo_example_plugin:RdhGaussian"
+
+[build-system]
+requires = ["setuptools>=62"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

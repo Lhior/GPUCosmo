@@ -1,0 +1,122 @@
+[project]
+name = "GPUCosmo"
+license = "GPL-3.0-or-later"
+license-files = ["COPYING", "NOTICE.md", "LICENSES/*.txt"]
+readme = "README.md"
+authors = [
+    { name = "Leonel Medina-Varela", email = "lhior@users.noreply.github.com" }
+]
+description = "GPU (JAX) cosmological likelihoods and Bayesian evidence (research preview): emulator-free Boltzmann theory, higher-order DALI expansions, tempered SMC, and a plug-in API for user likelihoods"
+keywords = ["cosmology", "jax", "gpu", "bayesian evidence", "likelihood", "cobaya", "desi", "planck"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dynamic = ["version"]
+requires-python = ">=3.11"
+# Core: the JAX theory, likelihood bundles, Cobaya-yaml resolver and samplers. Install a
+# GPU build of JAX for speed (extra "gpu", or follow the JAX installation guide).
+dependencies = [
+    "numpy",
+    "scipy",
+    "jax>=0.10",
+    "pyyaml",
+]
+
+[project.urls]
+"Source Code" = "https://github.com/Lhior/GPUCosmo"
+"Issue Tracker" = "https://github.com/Lhior/GPUCosmo/issues"
+"Release Notes" = "https://github.com/Lhior/GPUCosmo/blob/main/RELEASE_NOTES.md"
+
+[project.optional-dependencies]
+gpu = ["jax[cuda12]>=0.10"]
+# Planck 2018 plik / low-ℓ (clipy) and candl's ACT DR6 lensing
+planck = [
+    "clipy-like",
+    "candl-like",
+    "candl_data @ git+https://github.com/Lbalkenhol/candl_data.git",
+]
+# Cobaya: packages-path lookup, the likelihoods' data loaders, Cobaya likelihood classes
+cobaya = ["cobaya"]
+cosmopower = [
+    "cosmopower",
+    "tf-keras",
+    "cosmopower-jax",
+]
+ia = [
+    "fast-pt>=4.0",  # TATT (EulerianPTCalculator) in pyccl and gpucosmo.jax.ccl
+    "jax-pt>=1.0",  # JAX FAST-PT, default fastpt_backend of gpucosmo.jax.ccl.nl_pt
+]
+# the DESI DR2 BAO + CMB + SN demo end to end (camb: BBN tables and the high-ℓ lensing template)
+desi-full = [
+    "GPUCosmo[planck,cobaya]",
+    "camb>=2.0.0",
+]
+docs = [
+    "sphinx",
+    "sphinx-autoapi",
+    "sphinx-copybutton",
+    "sphinx-rtd-theme>=3.1.0",
+]
+# Optional packages the test suite exercises (tests that need data products, a GPU or the
+# git-only extras skip without them). camb also supplies the BBN tables and the high-ℓ
+# lensing template when data/ has no copies.
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "GPUCosmo[cobaya,ia]",
+    "camb>=2.0.0",
+    "pyccl",  # reference for the CCL-syntax JAX API tests
+]
+dev = [
+    "build",
+    "jupyter",
+    "matplotlib",
+    "pre-commit",
+    "GPUCosmo[docs,test]",
+]
+
+[project.scripts]
+gpucosmo-dali-hmc = "gpucosmo.cli.dali_hmc:main"
+gpucosmo-dali-ns = "gpucosmo.cli.dali_ns:main"
+gpucosmo-evidence = "gpucosmo.cli.evidence:main"
+gpucosmo-likelihoods = "gpucosmo.likelihoods.registry:main"
+gpucosmo-paths = "gpucosmo.paths:main"
+
+# Likelihood plug-ins: packages register their classes under this group (see
+# docs/adding_likelihoods.rst); the examples shipped here use it too.
+[project.entry-points."gpucosmo.likelihoods"]
+h0_gaussian = "gpucosmo.likelihoods.examples:GaussianH0"
+bao_distances = "gpucosmo.likelihoods.examples:BAODistances"
+
+[build-system]
+requires = [
+    "setuptools>=77",
+    "setuptools_scm>=6.2",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+gpucosmo = ["configs/cobaya/*.yaml", "_data/*.npz", "py.typed"]
+
+[tool.setuptools_scm]
+write_to = "src/gpucosmo/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "slow: multi-minute numerical convergence tests",
+]
+
+[tool.coverage.run]
+omit = ["src/gpucosmo/_version.py"]

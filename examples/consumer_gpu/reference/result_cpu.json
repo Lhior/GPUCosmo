@@ -1,0 +1,195 @@
+{
+ "environment": {
+  "python": "3.13.5",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "jax": "0.12.0.1",
+  "jaxlib": "0.12.0.1",
+  "numpy": "2.5.4",
+  "backend": "cpu",
+  "device": "cpu",
+  "n_devices": 1,
+  "cpu_count": 20,
+  "loadavg_1_5_15min": [
+   2.36865234375,
+   3.91064453125,
+   5.86083984375
+  ],
+  "gpucosmo": "0.1.dev52+g94d74ccd5",
+  "git_commit": "94d74ccd589a542e3917d9f0449c7de009ad5e44",
+  "git_dirty": false,
+  "sources_dtype": "float64",
+  "source_failure_policy": "reject"
+ },
+ "settings": {
+  "_comment": "Pinned settings of examples/consumer_gpu. Changing any of them invalidates the reference results.",
+  "lmax": 2508,
+  "nonlinear_lens": false,
+  "accurate": true,
+  "cosmologies": {
+   "lcdm_planck18": {
+    "logA": 3.044,
+    "ns": 0.9649,
+    "theta_mc_100": 1.04109,
+    "ombh2": 0.02237,
+    "omch2": 0.12,
+    "tau": 0.0544,
+    "w0": -1.0,
+    "wa": 0.0
+   },
+   "w0wa_desi_like": {
+    "logA": 3.044,
+    "ns": 0.9649,
+    "theta_mc_100": 1.04109,
+    "ombh2": 0.02237,
+    "omch2": 0.12,
+    "tau": 0.0544,
+    "w0": -0.75,
+    "wa": -0.8
+   }
+  },
+  "camb": {
+   "version_required": "2.0",
+   "AccuracyBoost": 2.0,
+   "lSampleBoost": 2.0,
+   "lAccuracyBoost": 2.0,
+   "lens_potential_accuracy": 8,
+   "lens_output_margin": 750,
+   "nonlinear": false,
+   "mnu": 0.06,
+   "num_massive_neutrinos": 1,
+   "nnu": 3.044,
+   "bbn_predictor": "PArthENoPE_880.2_standard.dat",
+   "dark_energy_model": "ppf"
+  },
+  "checks": {
+   "_comment": "Documented accuracy (docs/cobaya.rst, 'Accuracy against CAMB'): lensed TT/EE at l 1000-2508 within 4e-4 of CAMB (+6e-6 for the float32 evolution on GPUs). Other bands are reported, not checked.",
+   "tt_ee_rel_max_l1000_2508": 0.0005
+  },
+  "timing": {
+   "warm_repeats": 5
+  }
+ },
+ "camb_reference": {
+  "file": "examples/consumer_gpu/reference/camb_reference.npz",
+  "camb_version": "2.0.5"
+ },
+ "timing": {
+  "batch": 2,
+  "cold_first_call_s": 63.92379887700008,
+  "warm_s": [
+   11.733772444999886,
+   11.49253632,
+   11.331579781000073,
+   11.460386666999511,
+   11.181017617999714
+  ],
+  "warm_median_s": 11.460386666999511,
+  "warm_median_per_cosmology_s": 5.730193333499756,
+  "persistent_compile_cache": null,
+  "loadavg_after_1_5_15min": [
+   5.69970703125,
+   4.58203125,
+   5.84814453125
+  ]
+ },
+ "solver_status": [
+  0.0,
+  0.0
+ ],
+ "accuracy_vs_camb": {
+  "lcdm_planck18": {
+   "H0_jax": 67.32148330154213,
+   "H0_camb": 67.32220266035841,
+   "bands": {
+    "2-30": {
+     "tt_rel_max": 0.0006390633378832167,
+     "ee_rel_max": 0.0017899018001780176,
+     "te_rel_max": 0.0023824065216038436,
+     "kk_rel_mean": 2.944023593968285e-05
+    },
+    "30-500": {
+     "tt_rel_max": 0.0008561655275125535,
+     "ee_rel_max": 0.0009505298785343896,
+     "te_rel_max": 0.00084907893670655,
+     "kk_rel_mean": 0.000637015754835716
+    },
+    "500-1000": {
+     "tt_rel_max": 0.0011262471536381824,
+     "ee_rel_max": 0.0011831751929921586,
+     "te_rel_max": 0.0008419092340871916,
+     "kk_rel_mean": 0.0006342618169232725
+    },
+    "1000-1500": {
+     "tt_rel_max": 0.0002491633111865177,
+     "ee_rel_max": 0.00033879360342059517,
+     "te_rel_max": 0.00016026090355280824,
+     "kk_rel_mean": 0.0006332682707329529
+    },
+    "1500-2000": {
+     "tt_rel_max": 0.0001101867300418169,
+     "ee_rel_max": 0.00015770507004808643,
+     "te_rel_max": 5.57214853681944e-05,
+     "kk_rel_mean": 0.000701444256153157
+    },
+    "2000-2508": {
+     "tt_rel_max": 0.000283072003069873,
+     "ee_rel_max": 0.0003221035163774033,
+     "te_rel_max": 0.00013968556013740506,
+     "kk_rel_mean": 0.0007553074442594642
+    }
+   },
+   "tt_ee_rel_max_l1000_2508": 0.00033879360342059517,
+   "check_tt_ee_l1000_2508": {
+    "limit": 0.0005,
+    "pass": true
+   }
+  },
+  "w0wa_desi_like": {
+   "H0_jax": 66.14631287287605,
+   "H0_camb": 66.14642377810335,
+   "bands": {
+    "2-30": {
+     "tt_rel_max": 0.0006177672711208393,
+     "ee_rel_max": 0.0017967676080704598,
+     "te_rel_max": 0.002325518761751844,
+     "kk_rel_mean": 2.4710830255742136e-05
+    },
+    "30-500": {
+     "tt_rel_max": 0.0008587809153590698,
+     "ee_rel_max": 0.0009394025603428613,
+     "te_rel_max": 0.0007856184454326666,
+     "kk_rel_mean": 0.0006317754215154031
+    },
+    "500-1000": {
+     "tt_rel_max": 0.0011287898880285585,
+     "ee_rel_max": 0.0011683548881935568,
+     "te_rel_max": 0.0008477119607014747,
+     "kk_rel_mean": 0.0006290213467113265
+    },
+    "1000-1500": {
+     "tt_rel_max": 0.0002529099420497394,
+     "ee_rel_max": 0.0003485286659332676,
+     "te_rel_max": 0.00017164414921578693,
+     "kk_rel_mean": 0.0006282326091377019
+    },
+    "1500-2000": {
+     "tt_rel_max": 0.00011100518216200506,
+     "ee_rel_max": 0.0001335958480865873,
+     "te_rel_max": 6.584693597715908e-05,
+     "kk_rel_mean": 0.000696234778117068
+    },
+    "2000-2508": {
+     "tt_rel_max": 0.00028888498131030005,
+     "ee_rel_max": 0.0003172612553528076,
+     "te_rel_max": 0.00013511050915608922,
+     "kk_rel_mean": 0.000751094937243022
+    }
+   },
+   "tt_ee_rel_max_l1000_2508": 0.0003485286659332676,
+   "check_tt_ee_l1000_2508": {
+    "limit": 0.0005,
+    "pass": true
+   }
+  }
+ }
+}

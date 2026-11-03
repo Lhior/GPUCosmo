@@ -1,0 +1,77 @@
+# Environment for a GPUCosmo job on the self-hosted runner (gpucosmo-laptop): a fresh uv venv in
+# $RUNNER_TEMP with the package installed editable, and optionally the machine's data products
+# linked into the checkout. The runner service provides GPUCOSMO_CI_DATA / GPUCOSMO_CI_PACKAGES /
+# GPUCOSMO_CI_FIXTURES, COBAYA_PACKAGES_PATH and persistent caches (uv, Pythons, JAX compilation,
+# host tables).
+name: Set up GPUCosmo
+description: uv venv with GPUCosmo installed; optional data links
+inputs:
+  python-version:
+    description: Python version (a uv-managed CPython)
+    default: "3.13"
+  extras:
+    description: optional-dependency groups to install
+    default: dev
+  data:
+    description: link the machine's data/, packages/ and test fixtures (outputs/…) into the checkout ("true"/"false")
+    default: "false"
+  likelihoods:
+    description: also install the external likelihood / emulator packages of .github/ci/requirements-likelihoods.txt ("true"/"false")
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Trim the JAX compilation cache
+      shell: bash
+      # The tests keep every compiled program (tests/conftest.py). JAX's own size cap
+      # (jax_compilation_cache_max_size) reads the whole directory on every write, which made a
+      # 26 min job take hours at ~16 000 entries; this bounds the cache between jobs instead.
+      run: |
+        d="${GPUCOSMO_JAX_CACHE_DIR:-}"
+        if [ -z "$d" ] || [ ! -d "$d" ]; then exit 0; fi
+        find "$d" -maxdepth 1 -type f -name '*-atime' -delete  # left by a size-capped run
+        cap_kb=$((20 * 1024 * 1024))  # 20 GiB
+        if [ "$(du -sk "$d" | cut -f1)" -gt "$cap_kb" ]; then
+          find "$d" -maxdepth 1 -type f -mtime +7 -delete  # written more than a week ago
+        fi
+        if [ "$(du -sk "$d" | cut -f1)" -gt "$cap_kb" ]; then
+          find "$d" -mindepth 1 -delete
+        fi
+        echo "JAX compilation cache $d: $(du -sh "$d" | cut -f1), $(find "$d" -maxdepth 1 -type f | wc -l) files"
+    - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      with:
+        enable-cache: false
+    - name: Create the venv and install
+      shell: bash
+      run: |
+        venv="$RUNNER_TEMP/venv-${{ inputs.python-version }}"
+        uv venv -q --python "${{ inputs.python-version }}" "$venv"
+        echo "VIRTUAL_ENV=$venv" >> "$GITHUB_ENV"
+        echo "$venv/bin" >> "$GITHUB_PATH"
+        VIRTUAL_ENV="$venv" uv pip install -e ".[${{ inputs.extras }}]"
+        if [ "${{ inputs.likelihoods }}" = true ]; then
+          VIRTUAL_ENV="$venv" uv pip install -r .github/ci/requirements-likelihoods.txt
+        fi
+        "$venv/bin/python" -c "import sys, jax; print('python', sys.version.split()[0], 'jax', jax.__version__)"
+        echo "uv cache: $UV_CACHE_DIR"
+    - name: Link data products
+      if: inputs.data == 'true'
+      shell: bash
+      run: |
+        test -d "$GPUCOSMO_CI_DATA" || { echo "::error::GPUCOSMO_CI_DATA not set on this runner"; exit 1; }
+        # link each data set into data/, keeping any tracked entries,
+        # so git never writes through a link (checkout's clean removes the links themselves)
+        mkdir -p data
+        for d in "$GPUCOSMO_CI_DATA"/*; do
+          [ -e "data/$(basename "$d")" ] || ln -s "$d" "data/$(basename "$d")"
+        done
+        if [ -d "${GPUCOSMO_CI_PACKAGES:-}" ] && [ ! -e packages ]; then ln -s "$GPUCOSMO_CI_PACKAGES" packages; fi
+        ls -l data/
+        # generated files some tests read from outputs/ (reference spectra, saved DALI expansions, CosmoSIS blocks)
+        if [ -d "${GPUCOSMO_CI_FIXTURES:-}/outputs" ]; then
+          mkdir -p outputs
+          for d in "$GPUCOSMO_CI_FIXTURES"/outputs/*; do
+            [ -e "outputs/$(basename "$d")" ] || ln -s "$d" "outputs/$(basename "$d")"
+          done
+          ls -l outputs/
+        fi

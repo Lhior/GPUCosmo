@@ -1,0 +1,101 @@
+cff-version: 1.2.0
+message: >-
+  If you use GPUCosmo, please cite the software as below. GPUCosmo is a research preview:
+  please also state the version (or commit) used, and note that its independent full-likelihood
+  validation is pending (docs/research_preview.rst). Please also cite the codes GPUCosmo is
+  built on, for the parts you use: see "Citing" in README.md.
+title: "GPUCosmo: GPU-native cosmological likelihoods and Bayesian evidence in JAX"
+type: software
+authors:
+  - family-names: Medina-Varela
+    given-names: Leonel
+    affiliation: Carnegie Mellon University
+repository-code: "https://github.com/Lhior/GPUCosmo"
+license: GPL-3.0-or-later
+version: 0.1.0
+keywords:
+  - cosmology
+  - JAX
+  - GPU
+  - Bayesian evidence
+  - Einstein-Boltzmann solver
+  - likelihood
+abstract: >-
+  GPUCosmo evaluates cosmological likelihoods on GPUs with JAX: an emulator-free
+  Einstein-Boltzmann solver for the CMB and matter power spectra, DESI DR2 BAO, Planck,
+  ACT DR6 lensing and supernova likelihoods configured by Cobaya yamls, and a plug-in API for
+  user likelihoods. Bayesian evidences for model comparison come from higher-order DALI
+  expansions of the likelihood in the theory (third order by default, the order configurable,
+  with a convergence check between orders) and tempered sequential Monte Carlo on them.
+  Research preview.
+references:
+  - type: article
+    title: "Efficient computation of CMB anisotropies in closed FRW models"
+    authors:
+      - family-names: Lewis
+        given-names: Antony
+      - family-names: Challinor
+        given-names: Anthony
+      - family-names: Lasenby
+        given-names: Anthony
+    journal: The Astrophysical Journal
+    volume: 538
+    start: 473
+    year: 2000
+    identifiers:
+      - type: other
+        value: "arXiv:astro-ph/9911177"
+  - type: article
+    title: "CAMB v2: cosmological power spectra for high-precision surveys"
+    authors:
+      - family-names: Lewis
+        given-names: Antony
+    journal: Journal of Cosmology and Astroparticle Physics
+    volume: 2026
+    issue: 10
+    start: 13
+    year: 2026
+    identifiers:
+      - type: other
+        value: "arXiv:2607.14854"
+  - type: article
+    title: "ISiTGR: Testing deviations from GR at cosmological scales including dynamical dark energy, massive neutrinos, functional or binned parametrizations, and spatial curvature"
+    authors:
+      - family-names: Garcia-Quintero
+        given-names: Cristhian
+      - family-names: Ishak
+        given-names: Mustapha
+      - family-names: Fox
+        given-names: Logan
+      - family-names: Dossett
+        given-names: Jason
+    journal: Physical Review D
+    volume: 100
+    start: 103530
+    year: 2019
+    identifiers:
+      - type: other
+        value: "arXiv:1908.00290"
+  - type: article
+    title: "Cobaya: code for Bayesian analysis of hierarchical physical models"
+    authors:
+      - family-names: Torrado
+        given-names: Jesús
+      - family-names: Lewis
+        given-names: Antony
+    journal: Journal of Cosmology and Astroparticle Physics
+    year: 2021
+    identifiers:
+      - type: other
+        value: "arXiv:2005.05290"
+  - type: article
+    title: "Core Cosmology Library: Precision Cosmological Predictions for LSST"
+    authors:
+      - family-names: Chisari
+        given-names: Nora Elisa
+      - name: "LSST Dark Energy Science Collaboration"
+    journal: The Astrophysical Journal Supplement Series
+    year: 2019
+    identifiers:
+      - type: other
+        value: "arXiv:1812.05995"

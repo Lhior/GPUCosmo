@@ -1,0 +1,24 @@
+{
+  "_comment": "Pinned settings of examples/consumer_gpu. Changing any of them invalidates the reference results.",
+  "lmax": 2508,
+  "nonlinear_lens": false,
+  "accurate": true,
+  "cosmologies": {
+    "lcdm_planck18": {"logA": 3.044, "ns": 0.9649, "theta_mc_100": 1.04109, "ombh2": 0.02237,
+                      "omch2": 0.1200, "tau": 0.0544, "w0": -1.0, "wa": 0.0},
+    "w0wa_desi_like": {"logA": 3.044, "ns": 0.9649, "theta_mc_100": 1.04109, "ombh2": 0.02237,
+                       "omch2": 0.1200, "tau": 0.0544, "w0": -0.75, "wa": -0.8}
+  },
+  "camb": {
+    "version_required": "2.0",
+    "AccuracyBoost": 2.0, "lSampleBoost": 2.0, "lAccuracyBoost": 2.0,
+    "lens_potential_accuracy": 8, "lens_output_margin": 750, "nonlinear": false,
+    "mnu": 0.06, "num_massive_neutrinos": 1, "nnu": 3.044,
+    "bbn_predictor": "PArthENoPE_880.2_standard.dat", "dark_energy_model": "ppf"
+  },
+  "checks": {
+    "_comment": "Documented accuracy (docs/cobaya.rst, 'Accuracy against CAMB'): lensed TT/EE at l 1000-2508 within 4e-4 of CAMB (+6e-6 for the float32 evolution on GPUs). Other bands are reported, not checked.",
+    "tt_ee_rel_max_l1000_2508": 5e-4
+  },
+  "timing": {"warm_repeats": 5}
+}

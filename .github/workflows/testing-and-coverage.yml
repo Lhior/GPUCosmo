@@ -1,0 +1,193 @@
+# Two kinds of runner, split by trust (see .github/workflows/README.md, "Security"):
+#
+#   GitHub-hosted (ubuntu-latest), any event, including pull requests from forks:
+#     changes, lint, docs, unit tests on CPU without data products (Python 3.11 and 3.13)
+#   self-hosted "gpucosmo-laptop" (GPU, the data products), trusted code only — pushes to main,
+#   the nightly schedule and manual runs (only collaborators with write access can start those):
+#     unit tests with data (Python 3.13, CPU) and the slow tests (GPU)
+#
+# Pull-request code never runs on the self-hosted runner: on a public repository anyone can open
+# a pull request, and a self-hosted runner would execute it on a personal machine. To run the GPU
+# and data jobs on a contribution, review it, then push it to a branch of this repository and start
+# a manual run ( gh workflow run testing-and-coverage.yml --ref <branch> ), or merge it.
+#
+# "changes" sorts the files a pull request or push changes (.github/ci/changed_paths.sh): a change
+# that only touches documentation (docs/, *.md, *.rst) runs lint and docs. The nightly schedule
+# and manual runs run everything. Jobs are skipped with ``if:`` rather than the whole workflow with
+# ``paths:``: skipped jobs count as passed, so required checks (if branch protection is added) do
+# not stay pending.
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: "0 7 * * *"  # 03:00 EDT
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# least privilege: every job only reads the repository
+permissions:
+  contents: read
+
+env:
+  # jaxlib 0.11 on CPU: concurrent FFTs can deadlock XLA's intra-op thread pool (ducc0 waits for
+  # subtasks queued on the pool its own workers occupy); single-threaded Eigen kernels avoid it
+  XLA_FLAGS: --xla_cpu_multi_thread_eigen=false
+  # tests/conftest.py keeps compiled programs in the persistent XLA cache (GPUCOSMO_JAX_CACHE_DIR,
+  # set by the runner); .github/actions/setup-gpucosmo trims it to 20 GiB before each job (no
+  # JAX_COMPILATION_CACHE_MAX_SIZE: JAX's cap rereads the whole cache on every write)
+  PYTEST_ARGS: -rs --durations=20 --timeout=900 --timeout-method=thread
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - id: filter
+      env:
+        EVENT: ${{ github.event_name }}
+        BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: .github/ci/changed_paths.sh
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - uses: ./.github/actions/setup-gpucosmo
+    - name: pre-commit hooks
+      env:
+        SKIP: "check-lincc-frameworks-template-version,no-commit-to-branch,check-added-large-files,validate-pyproject,sphinx-build,pytest-check"
+      run: pre-commit run --all-files --show-diff-on-failure
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/setup-gpucosmo
+      with:
+        extras: docs
+    - name: Build docs
+      run: sphinx-build -T -E -b html -d docs/build/doctrees ./docs docs/build/html
+
+  unit-cpu:
+    # GitHub-hosted, every event: the pull-request gate (no data products, no GPU; tests that
+    # need them skip)
+    name: unit (py${{ matrix.python-version }}, no data)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11+: the code needs JAX >= 0.10, which no longer supports Python 3.10
+        python-version: ['3.11', '3.13']
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/setup-gpucosmo
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: pytest (not slow, CPU, no data products)
+      env:
+        JAX_PLATFORMS: cpu
+        COBAYA_PACKAGES_PATH: ""
+        GPUCOSMO_TABLE_CACHE: "0"  # no tables reduced from data either
+      # One process per test file, as in the slow job: one session's compiled programs reached
+      # ~10 GB by test_gG_gI_likelihood.py, beyond the 7 GB of a hosted runner for a private
+      # repository (the runner was shut down); a single file needs at most ~5 GB.
+      run: |
+        files=$(python -m pytest -m "not slow" --collect-only -q | grep '::' | cut -d: -f1 | sort -u)
+        failed=""
+        for f in $files; do
+          echo "::group::$f"
+          python -m pytest -m "not slow" $PYTEST_ARGS "$f" || failed="$failed $f"
+          echo "::endgroup::"
+        done
+        if [ -n "$failed" ]; then echo "::error::tests failed in:$failed"; exit 1; fi
+
+  unit:
+    # self-hosted: trusted refs only (never pull_request), and only in this repository (a fork's
+    # schedule must not look for the runner)
+    name: unit (py3.13, data)
+    needs: changes
+    if: >
+      github.event_name != 'pull_request' && github.repository == 'Lhior/GPUCosmo-dev' &&
+      needs.changes.outputs.code == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}  # coverage upload only when the secret exists
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
+    - uses: ./.github/actions/setup-gpucosmo
+      with:
+        extras: dev,planck
+        data: "true"
+        likelihoods: "true"
+    - name: pytest (not slow, CPU)
+      env:
+        JAX_PLATFORMS: cpu
+      run: python -m pytest -m "not slow" $PYTEST_ARGS --cov=gpucosmo --cov-report=xml
+    - name: Upload coverage report to codecov
+      if: env.CODECOV_TOKEN != ''
+      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  slow:
+    name: slow tests (GPU)
+    needs: changes
+    if: >
+      github.event_name != 'pull_request' && github.repository == 'Lhior/GPUCosmo-dev' &&
+      needs.changes.outputs.code == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 300
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
+    - uses: ./.github/actions/setup-gpucosmo
+      with:
+        extras: dev,gpu,planck
+        data: "true"
+        likelihoods: "true"
+    - name: Wait for a free GPU
+      run: .github/ci/wait_for_gpu.sh
+    - name: pytest -m slow (GPU)
+      env:
+        JAX_PLATFORMS: cuda,cpu  # the GPU is the default device; the CPU runs host callbacks (jax.pure_callback)
+        XLA_PYTHON_CLIENT_PREALLOCATE: "false"
+      # One process per test file: the compiled programs of a file are freed before the next one (a
+      # single session grew past the runner's MemoryHigh, whose throttling stalled the runner's own
+      # connection to GitHub), and a per-test timeout ends only that file's run. The first compiles
+      # of the large programs (DES Y3, the MG DALI expansions) take minutes.
+      run: |
+        files=$(python -m pytest -m slow --collect-only -q | grep '::' | cut -d: -f1 | sort -u)
+        failed=""
+        for f in $files; do
+          echo "::group::$f"
+          python -m pytest -m slow $PYTEST_ARGS --timeout=2700 "$f" || failed="$failed $f"
+          echo "::endgroup::"
+        done
+        if [ -n "$failed" ]; then echo "::error::slow tests failed in:$failed"; exit 1; fi

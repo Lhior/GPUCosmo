@@ -1,0 +1,44 @@
+# Background-only example analysis (runs in minutes on a CPU): BBN + n_s priors, BAO distances
+# from the example likelihood shipped with GPUCosmo, and cosmic chronometers from the plugin
+# file next to this yaml. Run (from the repository root):
+#
+#   gpucosmo-dali-hmc --config examples/custom_likelihood/analysis.yaml \
+#       --plugin examples/custom_likelihood/my_likelihoods.py --outdir out_example --stage map
+#   gpucosmo-dali-hmc ... --stage build --expansion-only
+#   gpucosmo-dali-ns --config ... --plugin ... --outdir out_example --stage ns \
+#       --compressed-dali --smc-particles 2048 --smc-runs 4
+theory:
+  camb:
+    extra_args:
+      num_massive_neutrinos: 1
+      dark_energy_model: ppf
+      bbn_predictor: PArthENoPE_880.2_standard.dat
+likelihood:
+  bbn_likelihoods.schoneberg2024:
+    mean: [0.02196, 3.034]
+    cov: [[4.0311226e-07, 7.30390042e-05], [7.30390042e-05, 0.0452831584]]
+  cmb_likelihoods.ns10_planck2018: {}
+  bao_distances:            # gpucosmo.likelihoods.examples.BAODistances (DESI DR1-like points)
+    z: [0.51, 0.51, 0.706, 0.706, 0.93, 0.93, 1.317, 1.317, 2.33, 2.33]
+    quantities: [DM_over_rd, DH_over_rd, DM_over_rd, DH_over_rd, DM_over_rd, DH_over_rd,
+                 DM_over_rd, DH_over_rd, DM_over_rd, DH_over_rd]
+    data: [13.62, 20.98, 16.85, 20.08, 21.71, 17.88, 27.79, 13.82, 39.71, 8.52]
+    cov: [[0.0625, -0.0244, 0, 0, 0, 0, 0, 0, 0, 0],
+          [-0.0244, 0.3364, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0.1024, -0.0476, 0, 0, 0, 0, 0, 0],
+          [0, 0, -0.0476, 0.3721, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0.0784, -0.0113, 0, 0, 0, 0],
+          [0, 0, 0, 0, -0.0113, 0.1225, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0.4624, -0.1065, 0, 0],
+          [0, 0, 0, 0, 0, 0, -0.1065, 0.1764, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0.8836, -0.0952],
+          [0, 0, 0, 0, 0, 0, 0, 0, -0.0952, 0.0289]]
+  cosmic_chronometers: {}   # from my_likelihoods.py (--plugin)
+params:
+  H0: {prior: {min: 50, max: 90}, ref: 68.0}
+  ombh2: {prior: {min: 0.005, max: 0.04}, ref: 0.0224}
+  omch2: {prior: {min: 0.05, max: 0.3}, ref: 0.12}
+  logA: {prior: {dist: norm, loc: 3.04, scale: 0.1}}   # unconstrained by background data: keep it Gaussian
+  ns: {prior: {min: 0.8, max: 1.2}, ref: 0.965}
+  tau: 0.0544
+  mnu: 0.06
