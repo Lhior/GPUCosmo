@@ -1,5 +1,35 @@
 # Release notes
 
+## 0.2.0 — research preview (2026-11-03)
+
+Every Gaussian likelihood of the DESI DR2 + CMB + SN demo is now projected onto the DALI
+expansion's coefficients, so sampling evaluates no background or Boltzmann quantity per point.
+Accuracy against the exact likelihood is unchanged (order 4, at stored exact posterior draws:
+rms of log L_exact − log L_DALI 0.043 for w0waCDM and 0.024 for ΛCDM, log Z errors ≤ 0.006,
+posterior means within 0.02σ, as with 0.1.0). On an RTX 5070 Laptop GPU the DALI log L +
+gradient runs at up to 527 000 points per second instead of 9 000, and the demo's SMC stage takes
+about a minute instead of 22–29.
+
+- **Supernovae on the expansion.** The SN distance moduli are a theory output, DALI-expanded
+  with the CMB spectra; the SN inverse covariance is folded into their coefficients.
+- **CamSpec compressed** (`CamSpecCompressed`): the χ² as a quadratic form over the expansion
+  coefficients (1527 at order 4 for w0waCDM instead of 9915 data points), with exact calibrations
+  and power-law foregrounds, in float32 with calibration groups and decorrelated monomials (its
+  rounding matches the direct χ²'s, ~2e-5 in log L).
+- **ACT DR6 lensing port projected**: its 19 bandpowers are linear in κκ and the lensed spectra.
+- **Spectra only to the multipoles read**: `Likelihood.cmb_lmax()` declares the largest ℓ a
+  likelihood reads from the built-in CMB block (the Planck clik ports: their requested ℓ_max);
+  the shared spectra are evaluated only that far.
+- `CompressedDALI` options `sn`, `camspec`, `camspec_f64`, `act`, `trim_shared` select the earlier
+  forms for validation.
+- Demo results (order 4): w0waCDM log Z_DALI −6375.636 ± 0.007, ΛCDM −6379.766 ± 0.006,
+  Δ ln Z = 4.13 ± 0.01.
+
+**Rebuild expansions**: `dali.npz` files written by 0.1.0 for analyses with supernovae have no SN
+outputs; delete them (or use a new `--outdir`) so the build stage runs again.
+
+Install: `pip install "GPUCosmo @ git+https://github.com/Lhior/GPUCosmo@v0.2.0"`.
+
 ## 0.1.0 — research preview (2026-11-03)
 
 The first public release of GPUCosmo. It is a **research preview**: usable for research within

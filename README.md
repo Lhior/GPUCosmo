@@ -92,16 +92,15 @@ gpucosmo-evidence --analysis lcdm_desidr2_cmb_desy5 --dali-order 4 --auto-boxes 
 `--auto-boxes 10` samples ±10σ boxes around the MAP (log Z corrected by the volume ratio): these
 yamls' priors are far wider than the posterior, and without boxes the DALI expansion is evaluated
 where the Planck low-ℓ likelihoods are undefined. `--smc-chunk 512` keeps the SMC subprocess
-within the GPU memory the exact stages leave free on an 8 GB card (CamSpec's compressed DALI
-likelihood needs ~1.7 GB per 2048-particle chunk).
+within the GPU memory the exact stages leave free on an 8 GB card.
 
 `--dali-order 4`: this analysis needs the quadruplet (below). Measured on an RTX 5070 Laptop
 GPU (8 GB, WSL2), JAX 0.12, 2026-11-02/03, with the DES-SN5YR set:
 
 | model | log Z_DALI (order 4) | order 3 → 4 | order 2 → 4 | build + SMC |
 |---|---|---|---|---|
-| w0waCDM (`w0wa_desidr2_cmb_desy5`, 17 parameters, 8 expanded) | −6375.632 ± 0.008 | +0.038 | +0.053 | 10 + 24 min |
-| ΛCDM (`lcdm_desidr2_cmb_desy5`, 15 parameters, 6 expanded) | −6379.767 ± 0.009 | +0.020 | +0.032 | 4 + 31 min |
+| w0waCDM (`w0wa_desidr2_cmb_desy5`, 17 parameters, 8 expanded) | −6375.636 ± 0.007 | +0.042 | +0.058 | 10 + 2 min |
+| ΛCDM (`lcdm_desidr2_cmb_desy5`, 15 parameters, 6 expanded) | −6379.766 ± 0.006 | +0.019 | +0.034 | 4 + 2 min |
 
 Δ log Z = 4.13 ± 0.01 in favour of w0waCDM for these yamls' priors (w ∈ [−3, 1],
 wa ∈ [−3, 2]); a Bayes factor depends on those priors. The ± is Monte Carlo precision only
@@ -110,8 +109,11 @@ evidences have not been validated independently.
 
 After the DALI build no exact likelihood is evaluated: the SMC's HMC moves accept or reject on
 the DALI posterior, and nothing is reweighted. The evidences and posteriors here are those of
-the DALI likelihood. (The supernova term is not expanded: its distances come from the
-background expansion history at each point, an integral without a Boltzmann solve.)
+the DALI likelihood. The supernova distances are DALI-expanded like the CMB spectra, and the
+Gaussian likelihoods (CamSpec, ACT lensing, SN, BAO) are projected onto the expansion's
+coefficients: CamSpec's χ² is a quadratic form over 1527 coefficients instead of its 9915 data
+points, ACT's 19 bandpowers are linear in them. Only the non-Gaussian Planck low-ℓ likelihoods
+read spectra, at ℓ < 30.
 
 **The DALI hierarchy on this analysis.** The same analyses at orders 2, 3 and 4:
 
@@ -119,16 +121,19 @@ background expansion history at each point, an integral without a Boltzmann solv
 |---|---|---|---|
 | 2 (doublet) | −6375.663 ± 0.009 | −6379.794 ± 0.009 | 4.13 |
 | 3 (triplet) | −6375.683 ± 0.006 | −6379.787 ± 0.006 | 4.10 |
-| 4 (quadruplet) | −6375.632 ± 0.008 | −6379.767 ± 0.009 | 4.13 |
+| 4 (quadruplet) | −6375.636 ± 0.007 | −6379.766 ± 0.006 | 4.13 |
 
-The order check of the order-4 runs shows why this analysis needs the quadruplet: order 3 → 4
-raises log Z by +0.038 (w0waCDM) and +0.020 (ΛCDM), more than 2 → 3 did (+0.017, +0.013).
+(Orders 2 and 3: earlier runs with the supernova distances computed exactly and the CMB
+likelihoods evaluated on the spectra; at order 4 the two forms differ by < 1e-4 in log L at the
+posterior draws.) The order check of the order-4 runs shows why this analysis needs the
+quadruplet: order 3 → 4 raises log Z by +0.042 (w0waCDM) and +0.019 (ΛCDM), more than 2 → 3 did
+(+0.017, +0.013).
 CamSpec's high-ℓ spectra depend on ω_c through a quartic term, even in the offset, which a
 cubic cannot reproduce and the 2 → 3 step cannot see; the other expanded likelihoods (low-ℓ TT
 and EE, BAO, ACT lensing) converge at the triplet. At order 4 the posterior means move by at most
-0.01σ from order 3. The quadruplet costs 2049 exact theory evaluations for the build (10 min for
-w0waCDM, against 4.5 min for the triplet) and about the same SMC time per run. The MAP and the
-sampling boxes (about 3.5 min) come first. How these orders compare with the exact likelihood is
+0.02σ from order 3. The quadruplet costs 2049 exact theory evaluations for the build (10 min for
+w0waCDM, against 4.5 min for the triplet); the SMC then takes about a minute (log L + gradient at
+up to 500 000 points per second). The MAP and the sampling boxes (about 3.5 min) come first. How these orders compare with the exact likelihood is
 in the [error budget](docs/research_preview.rst#what-the-evidence-uncertainties-mean).
 
 **Against DESI's official chain.** GPUCosmo's SMC posterior (32 768 particles sampling the

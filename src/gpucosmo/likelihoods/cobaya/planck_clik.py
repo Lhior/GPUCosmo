@@ -41,6 +41,10 @@ class PlikClik(CobayaPort):
         if missing:
             raise NotImplementedError(f"clik parameters {missing} are neither sampled nor fixed")
 
+    def cmb_lmax(self) -> int:
+        """``loglike`` reads each requested spectrum to its requested ℓ_max."""
+        return max(lmax for _, lmax in self.spectra)
+
     def fixed_params(self) -> dict:
         """The likelihood's parameters fixed in the Cobaya model (values passed to clik)."""
         model = self.bridge._model

@@ -958,6 +958,13 @@ def build_mg_bundle(cfg: MGConfig = MGConfig(), packages_path: str | None = None
         cosmo_ = Cosmology(_cosmo_th(x_th)[0], tables)
         return {L.label: L.theory(cosmo_) for L in extra_theory}
 
+    def theory_sn(x_th):
+        """Supernova distance moduli 5 log10 D_L at the SN redshifts (``sn_like.theory_vector``): a
+        theory output like the others, so the DALI expansion covers the SN likelihood too."""
+        c = _cosmo_th(x_th)[0]
+        bp = BackgroundParams.build(c["ombh2"], c["omch2"], 100.0 * c["h"], c["w0"], c["wa"], ext=c["ext"])
+        return {"mu": sn_like.theory_vector(bp)}
+
     def theory_exact(x_th):
         out = {}
         if cmb_on(cfg):
@@ -966,6 +973,8 @@ def build_mg_bundle(cfg: MGConfig = MGConfig(), packages_path: str | None = None
             out.update(theory_lin(x_th))
         if extra_theory:
             out["ext"] = theory_ext(x_th)
+        if sn_like is not None:
+            out["sn"] = theory_sn(x_th)
         return out
 
     def theory_cmb_group(Xg):
@@ -1016,6 +1025,8 @@ def build_mg_bundle(cfg: MGConfig = MGConfig(), packages_path: str | None = None
             out.update(_map_walkers(theory_lin, X_th, cfg.pk_walker_batch))
         if extra_theory:
             out["ext"] = _map_walkers(theory_ext, X_th, cfg.pk_walker_batch)
+        if sn_like is not None:
+            out["sn"] = _map_walkers(theory_sn, X_th, cfg.pk_walker_batch)
         return out
 
     # ---- likelihood given the theory block ----
@@ -1072,8 +1083,8 @@ def build_mg_bundle(cfg: MGConfig = MGConfig(), packages_path: str | None = None
                 parts["fs_mlp"] = tot - sum(per.values())
             else:
                 parts["desi_fs"] = fs_like.loglike(inp, nuis_fs, tables=fs_tab)
-        if sn_like is not None and use("sn"):
-            parts["sn"] = sn_like(bp)
+        if sn_like is not None and use("sn"):  # the distances from the theory block (exact or DALI-expanded)
+            parts["sn"] = sn_like.from_theory(th["sn"]["mu"]) if "sn" in th else sn_like(bp)
         if extra:
             cosmo_ = Cosmology(c, tables)
             for L in extra:
@@ -1202,6 +1213,8 @@ def build_mg_bundle(cfg: MGConfig = MGConfig(), packages_path: str | None = None
                          else clip_lin(y["pk"][k], y0["pk"][k]) for k in y["pk"]}
         if "ext" in y:  # user likelihoods' outputs: unclipped (no generic safe bound)
             out["ext"] = y["ext"]
+        if "sn" in y:  # SN distance moduli: smooth in the parameters, unclipped
+            out["sn"] = y["sn"]
         return out
 
     def _like_tree():
@@ -1279,6 +1292,8 @@ def build_mg_bundle(cfg: MGConfig = MGConfig(), packages_path: str | None = None
         groups = [theory_stages(_self["b"], compute_dtype=jnp.float64)]  # higher orders need float64 evolutions
         if extra_theory:  # user likelihoods' outputs: one more (separately differentiated) stage
             groups.append([("ext", lambda xt: {"ext": theory_ext(xt)})])
+        if sn_like is not None:  # SN distance moduli: likewise
+            groups.append([("sn", lambda xt: {"sn": theory_sn(xt)})])
         coef = {}
         for st in (g for g in groups if g):
             _, c = staged_expansion(st, x_th, order=order, tangent_batch=tangent_batch, batch=max(1, int(pair_batch)),

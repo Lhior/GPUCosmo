@@ -239,6 +239,12 @@ class Likelihood:
     def label(self) -> str:
         return self.name or type(self).__name__
 
+    def cmb_lmax(self) -> int | None:
+        """The largest multipole of the built-in "cmb" block (``requires``) that ``loglike`` reads, or
+        None (unknown: all of it). The compressed DALI likelihood evaluates the shared spectra only up
+        to the largest one its likelihoods declare."""
+        return None
+
     def has_theory(self) -> bool:
         return type(self).theory is not Likelihood.theory
 

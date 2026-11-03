@@ -224,11 +224,18 @@ def build_sn_loglike(
             lumdists = jnp.where(is_calibrator, ceph_lumdist, lumdists)
         return lumdists
 
-    def loglike(params: BackgroundParams) -> jnp.ndarray:
-        resid = mag - theory_vector(params)
+    def loglike_from_theory(lumdists: jnp.ndarray) -> jnp.ndarray:
+        """log L from the distance moduli 5 log10 D_L of ``theory_vector`` (e.g. DALI-expanded)."""
+        resid = mag - lumdists
         return -0.5 * resid @ invcov @ resid
 
+    def loglike(params: BackgroundParams) -> jnp.ndarray:
+        return loglike_from_theory(theory_vector(params))
+
     loglike.theory_vector = theory_vector  # type: ignore[attr-defined]
+    loglike.from_theory = loglike_from_theory  # type: ignore[attr-defined]
+    loglike.mag = np.asarray(data.mag, dtype=float)  # type: ignore[attr-defined]
+    loglike.invcov = np.asarray(data.invcov, dtype=float)  # type: ignore[attr-defined]
     return loglike
 
 

@@ -3,7 +3,7 @@ Installation
 
 GPUCosmo needs Python ≥ 3.11 and JAX ≥ 0.10. The core dependencies are NumPy, SciPy, JAX and PyYAML.
 The research preview is distributed on GitHub, not on PyPI: install from a clone, or from the
-tag with ``pip install "GPUCosmo @ git+https://github.com/Lhior/GPUCosmo@v0.1.0"``.
+tag with ``pip install "GPUCosmo @ git+https://github.com/Lhior/GPUCosmo@v0.2.0"``.
 
 .. code-block:: bash
 

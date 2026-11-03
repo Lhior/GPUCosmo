@@ -149,7 +149,7 @@ analyses) covers only part of the error:
     ==================  =================  =================  ====  ==================  ==============
     2                   −6375.663 ± 0.009  −6379.794 ± 0.009  4.13  ≤ 0.026σ            ≤ 3.5 %
     3                   −6375.683 ± 0.006  −6379.787 ± 0.006  4.10  ≤ 0.010σ            ≤ 4.9 %
-    4                   −6375.632 ± 0.008  −6379.767 ± 0.009  4.13  ≤ 0.017σ            ≤ 1.2 %
+    4                   −6375.636 ± 0.007  −6379.766 ± 0.006  4.13  ≤ 0.017σ            ≤ 1.2 %
     exact likelihood    −6375.629 ± 0.009  −6379.779 ± 0.009  4.15
     ==================  =================  =================  ====  ==================  ==============
 
@@ -167,7 +167,7 @@ analyses) covers only part of the error:
 Reproducing the published numbers
 ---------------------------------
 
-The README's timings and log Z values (e.g. "log Z_DALI −6375.632 ± 0.008" for w0waCDM from DESI
+The README's timings and log Z values (e.g. "log Z_DALI −6375.636 ± 0.007" for w0waCDM from DESI
 DR2 BAO + CMB + DES-SN5YR at DALI order 4) were measured by the developer on an RTX 5070 Laptop from a clean install.
 The run directories are not part of this release. They are developer measurements, and an
 independent rerun has not reproduced them. ``examples/consumer_gpu`` is a small reproducible GPU example that needs no

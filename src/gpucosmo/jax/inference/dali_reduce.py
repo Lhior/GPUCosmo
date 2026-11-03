@@ -420,6 +420,267 @@ def _fs_loglike_whitened(fs_like, inp, nuis, tw, sigma8, fsigma8, white, dtype):
     return total
 
 
+def psd_whitening(A) -> np.ndarray:
+    """W with W Wᵀ = (A + Aᵀ)/2 for a positive semi-definite A (e.g. an inverse covariance with an
+    analytically marginalized offset, which is singular), so xᵀ A x = |Wᵀx|²."""
+    A = np.asarray(A, dtype=np.float64)
+    lam, U = np.linalg.eigh(0.5 * (A + A.T))
+    if lam.min() < -1e-8 * lam.max():
+        raise ValueError(f"matrix not positive semi-definite (eigenvalue {lam.min():.3g})")
+    return U * np.sqrt(np.clip(lam, 0.0, None))
+
+
+# ---------------------------------------------------------------- ACT DR6 lensing (Cobaya port)
+def act_port_projectable(L, cmb_terms: dict) -> bool:
+    """The ``act_dr6_lenslike`` port (``likelihoods.cobaya.act_lens``) on an expansion with the extended
+    spectra (``cmb_x``) to its multipoles: its bandpowers are linear in κκ and the lensed D_ℓ."""
+    from gpucosmo.likelihoods.cobaya.act_lens import ACTDR6LensLike
+
+    x = cmb_terms.get("cmb_x")
+    return isinstance(L, ACTDR6LensLike) and x is not None and np.shape(x)[-1] >= L.n_ell
+
+
+def act_port_terms(L, cmb_terms: dict) -> np.ndarray:
+    """(n_terms, n_bins) expansion coefficients of the port's binned theory without its offset:
+    a_kk C^κκ + Σ_X a_cmb,X D_ℓ^X, with C^κκ the ``cmb_x`` κκ row for ℓ ≥ 1 (the port's
+    φφ → κκ conversion, 0 at ℓ = 0) and D_ℓ the TT, EE, BB, TE rows (the port's order)."""
+    x = np.asarray(cmb_terms["cmb_x"], dtype=np.float64)
+    n = L.n_ell
+    kk = x[:, 0, :n] * (np.arange(n) >= 1)[None, :]
+    b = kk @ np.asarray(L.lens.a_kk, dtype=np.float64).T
+    if L.lens.needs_cmb:
+        b = b + np.einsum("xbl,txl->tb", np.asarray(L.lens.a_cmb, dtype=np.float64), x[:, 1:5, :n])
+    return b
+
+
+# ---------------------------------------------------------------- CamSpec
+def _cmb_spectra_terms(cmb_terms: dict) -> dict:
+    """{"tt", "te", "ee": (n_terms, ℓ)} expansion coefficients of the lensed D_ℓ as CMB ports read them
+    (``mg_bundle.shared_block``: ``cmb_x`` rows κκ, TT, EE, BB, TE, else ``dl_tt`` / ``dl_te`` / ``dl_ee``)."""
+    if "cmb_x" in cmb_terms:
+        x = np.asarray(cmb_terms["cmb_x"], dtype=np.float64)
+        return {"tt": x[:, 1], "ee": x[:, 2], "te": x[:, 4]}
+    return {s: np.asarray(cmb_terms[f"dl_{s}"], dtype=np.float64) for s in ("tt", "te", "ee")}
+
+
+class _Inp:  # the parameter view of ``LikelihoodInputs`` that CamSpec's ``cals`` / ``_param`` read
+    def __init__(self, params):
+        self.params = params
+
+
+class CamSpecCompressed:
+    """CamSpec's high-ℓ χ² on the DALI expansion in the expansion basis; the nuisances stay exact.
+
+    The residual is δ = d − Σ_k c_k v_k over fixed vectors v_k:
+
+    * theory: per calibration group (data segments — TT 100/143/217/143×217, TE, EE — whose
+      calibrations differ by fixed factors, e.g. the three TT spectra when cal0 = cal2 = 1), the
+      expansion coefficients of the segments' spectra at their multipoles, with coefficients ψ_t / cal;
+    * foregrounds: for the power laws amp_i (ℓ/1500)^{n_i}, an orthonormal basis W_i over the prior range
+      of n_i (an SVD, residual < ``tol``), with coefficients amp_i β_i(n_i) / cal_i, β = W_iᵀ(ℓ/1500)^{n_i}
+      tabulated on the n grid with dβ/dn and interpolated (cubic Hermite, ~1e-10 of the vector).
+
+    ψ are the expansion's monomials in decorrelated coordinates z = A d (AᵀA = CamSpec's Fisher matrix of
+    the theory parameters, regularized by the expansion steps): the same polynomial (φ = Bψ, B
+    from the exact change of basis, degree by degree, so truncating the order is unchanged), but no
+    single column's χ² contribution is large and cancelled by others. Then
+
+        χ² = χ²_ref − 2 h·e + eᵀ M̃ e,   e = (c − c_ref) / s,   M̃ = s (VᵀSV) s,
+
+    centred at a reference point (expansion point, reference nuisances), Jacobi-scaled
+    (s_k = (VᵀSV)_kk^{−1/2}), the quadratic term a float32 product (``f64``: float64) with K ≈ (number
+    of calibration groups) × n_terms + Σ dim W_i columns instead of the 9915 data points.
+    Supported: the power-law foreground model (``use_fg_residual_model`` 0: NPIPE / 2021 defaults)."""
+
+    SPEC = ("tt", "tt", "tt", "tt", "te", "ee")
+    FREQ = ("100", "143", "217", "143x217")
+
+    @staticmethod
+    def supports(L) -> bool:
+        from gpucosmo.likelihoods.cobaya.planck_python import CamSpec
+
+        # (a Cobaya port's own ``theory``, the bridge's background products, is not read by CamSpec)
+        return isinstance(L, CamSpec) and not L.fg_2018 and tuple(L.requires) == ("cmb",)
+
+    def __init__(self, L, cmb_terms: dict, bundle, x_ref, d_ref, order: int, steps, *, log=print,
+                 tol: float = 1e-12, n_grid: int = 4001, f64: bool = False):
+        I = bundle.internals
+        self.L, self.idx, self.order = L, I.idx, int(order)
+        spec = _cmb_spectra_terms(cmb_terms)
+        nt = spec["tt"].shape[0]
+        d_ref = np.asarray(d_ref, dtype=np.float64)
+        n = d_ref.size
+        self.n = n
+        if nt != n_terms(n, self.order):
+            raise ValueError(f"CMB coefficients have {nt} terms, expected {n_terms(n, self.order)}")
+        data = np.asarray(L.data, dtype=np.float64)
+        lo, hi = np.asarray(bundle.prior_lo, float), np.asarray(bundle.prior_hi, float)
+        x_ref = np.asarray(x_ref, dtype=np.float64)
+        M = np.asarray(jax.device_get(L.chi2.M), dtype=np.float64)
+        S = 0.5 * (M + M.T) if L.chi2.full else M + M.T - np.diag(L.chi2.diag)
+        del M
+        t0 = time.perf_counter()
+        # data segments and calibration groups (calibration ratios constant over the nuisances)
+        rows, off = {}, 0
+        for i, ls in L.segments:
+            rows[i] = (off, np.asarray(ls))
+            off += ls.size
+        if off != data.size:
+            raise ValueError(f"CamSpec segments cover {off} of {data.size} data points")
+        rng = np.random.default_rng(0)
+        pidx = [I.idx[p_] for p_ in L.params]
+        xs = [x_ref]
+        for _ in range(4):
+            xx = x_ref.copy()
+            xx[pidx] = lo[pidx] + rng.uniform(0.2, 0.8, len(pidx)) * (hi[pidx] - lo[pidx])
+            xs.append(xx)
+        cal = np.array([[float(c) for c in L.cals(self._params(jnp.asarray(xx)))] for xx in xs])
+        self.groups = []
+        for i, _ in L.segments:
+            for g in self.groups:
+                r = cal[:, i] / cal[:, g["lead"]]
+                if np.allclose(r, r[0], rtol=1e-12, atol=0):
+                    g["members"].append((i, float(r[0])))
+                    break
+            else:
+                self.groups.append(dict(lead=i, members=[(i, 1.0)]))
+        Vth = []
+        for g in self.groups:  # model of member i = ψ·T_i / cal_i = (ψ·T_i · cal_lead/cal_i) / cal_lead
+            v = np.zeros((data.size, nt))
+            for i, ratio in g["members"]:
+                o, ls = rows[i]
+                v[o:o + ls.size] = spec[self.SPEC[i]][:, ls].T / ratio
+            Vth.append(v)
+        # decorrelated coordinates z = A d from CamSpec's Fisher matrix of the linear terms
+        J = sum(v[:, 1:n + 1] for v in Vth) / cal[0, self.groups[0]["lead"]]
+        F = J.T @ S @ J + np.diag(1.0 / np.asarray(steps, dtype=np.float64) ** 2)
+        A = np.linalg.cholesky(F).T  # AᵀA = F
+        Z = rng.standard_normal((3 * nt, n))
+        Psi = np.asarray(monomials(jnp.asarray(Z), self.order))
+        Phi = np.asarray(monomials(jnp.asarray(np.linalg.solve(A, Z.T).T), self.order))
+        Bt, *_ = np.linalg.lstsq(Psi, Phi, rcond=None)  # φ(d) = B ψ(A d), Bᵀ = Bt
+        self.basis_change_err = float(np.max(np.abs(Phi - Psi @ Bt)) / np.max(np.abs(Phi)))
+        cols = [v @ Bt.T for v in Vth]
+        # foreground power laws: orthonormal bases over the prior range of the index
+        self.fg = []
+        for i, _ in L.segments:
+            if i > 3 or not L.fg_powerlaw:
+                continue
+            f = self.FREQ[i]
+            o, ls = rows[i]
+            seg = dict(i=i, ls=ls.astype(np.float64), amp=f"amp_{f}", n=f"n_{f}")
+            if seg["n"] in I.idx:
+                j = I.idx[seg["n"]]
+                grid = np.linspace(lo[j], hi[j], n_grid)
+            else:
+                grid = np.asarray([float(L.fixed[seg["n"]])])
+            G = (ls / 1500.0)[:, None] ** grid[None, :]
+            U, _, _ = np.linalg.svd(G, full_matrices=False)
+            for k in range(1, U.shape[1] + 1):
+                W = U[:, :k]
+                rel = np.linalg.norm(G - W @ (W.T @ G), axis=0) / np.linalg.norm(G, axis=0)
+                if rel.max() < tol:
+                    break
+            seg.update(W=W, basis_rel_err=float(rel.max()))
+            # β(n) = Wᵀ(ℓ/1500)^n tabulated with dβ/dn on the grid (cubic Hermite per point, error ~1e-10)
+            lnr = np.log(ls / 1500.0)
+            seg.update(n_lo=float(grid[0]), n_step=float(grid[1] - grid[0]) if grid.size > 1 else 1.0,
+                       B=(W.T @ G).T, dB=(W.T @ (G * lnr[:, None])).T)
+            v = np.zeros((data.size, W.shape[1]))
+            v[o:o + ls.size] = W
+            cols.append(v)
+            self.fg.append(seg)
+        V = np.concatenate(cols, axis=1)
+        self.K = V.shape[1]
+        SV = S @ V
+        Q = V.T @ SV
+        Q = 0.5 * (Q + Q.T)
+        self.A = A
+        self.fg_tables = [dict(B=jnp.asarray(seg["B"]), dB=jnp.asarray(seg["dB"])) for seg in self.fg]
+        c_ref = np.asarray(self.coefficients(jnp.asarray(self.psi(d_ref)), jnp.asarray(x_ref)))
+        dres = data - V @ c_ref
+        g = SV.T @ dres
+        q0 = float(dres @ S @ dres)
+        del S, SV
+        sc = 1.0 / np.sqrt(np.clip(np.diag(Q), 1e-300, None))
+        Ms = Q * sc[:, None] * sc[None, :]
+        self.arrays = dict(A=jnp.asarray(A), c_ref=jnp.asarray(c_ref), sc=jnp.asarray(sc), hs=jnp.asarray(g * sc),
+                           q0=jnp.asarray(q0), fg=self.fg_tables)
+        self.f64 = bool(f64)
+        self.arrays["M64" if self.f64 else "M32"] = jnp.asarray(Ms if self.f64 else Ms.astype(np.float32))
+        # check: the compressed residual at the reference is the port's own
+        phi_ref = np.asarray(monomials(jnp.asarray(d_ref), self.order))
+        delta_port = np.asarray(jax.device_get(L.residual(self._port_inputs(spec, phi_ref, x_ref))))
+        self.ref_check = float(np.max(np.abs(delta_port - dres)) / np.max(np.abs(dres)))
+        log(f"compressed CamSpec: K = {self.K} ({len(self.groups)} calibration groups of "
+            f"{[len(g_['members']) for g_ in self.groups]} segments × {nt} terms + {self.K - len(self.groups) * nt} "
+            f"foreground basis vectors, basis error ≤ {max([s_['basis_rel_err'] for s_ in self.fg] or [0.0]):.1e}; "
+            f"monomial basis change {self.basis_change_err:.1e}); built in {time.perf_counter() - t0:.1f} s; "
+            f"reference residual vs the port {self.ref_check:.1e}")
+        if not (self.ref_check < 1e-8 and self.basis_change_err < 1e-9):
+            raise ValueError(f"compressed CamSpec: reference residual {self.ref_check:.2e}, basis change "
+                             f"{self.basis_change_err:.2e} (relative)")
+
+    def psi(self, d, order: int | None = None):
+        """Monomials of the decorrelated coordinates A d (higher orders zeroed beyond ``order``)."""
+        ps = monomials(jnp.asarray(self.A) @ jnp.asarray(d), self.order)
+        if order is not None and order < self.order:
+            ps = jnp.where(jnp.arange(ps.shape[-1]) < n_terms(self.n, order), ps, 0.0)
+        return ps
+
+    def _params(self, x):
+        return _Inp({n: x[self.idx[n]] for n in self.L.params})
+
+    def _port_inputs(self, spec, phi, x):
+        from gpucosmo.likelihoods.base import LikelihoodInputs
+
+        phi = np.asarray(phi, dtype=np.float64)
+        cl = {s: jnp.asarray(phi @ spec[s]) for s in ("tt", "te", "ee")}
+        return LikelihoodInputs(theory=None, params=self._params(jnp.asarray(x)).params, cosmo=None,
+                                shared={"cmb": {"cl": cl}})
+
+    @staticmethod
+    def _beta(seg, tab, n_):
+        """β(n) = Wᵀ(ℓ/1500)^n by cubic Hermite interpolation of the tabulated β and dβ/dn."""
+        B, dB = tab["B"], tab["dB"]
+        if B.shape[0] == 1:  # a fixed index
+            return B[0]
+        h = seg["n_step"]
+        u = (n_ - seg["n_lo"]) / h
+        j = jnp.clip(jnp.floor(u), 0, B.shape[0] - 2).astype(jnp.int32)
+        t = u - j
+        t2, t3 = t * t, t * t * t
+        return ((2 * t3 - 3 * t2 + 1) * B[j] + (t3 - 2 * t2 + t) * h * dB[j]
+                + (-2 * t3 + 3 * t2) * B[j + 1] + (t3 - t2) * h * dB[j + 1])
+
+    def coefficients(self, psi, x, tables=None):
+        """c (K,): per calibration group ψ / cal_lead, then per power law amp_i β_i(n_i) / cal_i."""
+        inp = self._params(x)
+        cals = self.L.cals(inp)
+        out = [psi / cals[g["lead"]] for g in self.groups]
+        for k, seg in enumerate(self.fg):
+            tab = (self.fg_tables if tables is None else tables)[k]
+            beta = self._beta(seg, tab, self.L._param(inp, seg["n"]))
+            out.append(self.L._param(inp, seg["amp"]) / cals[seg["i"]] * beta)
+        return jnp.concatenate(out)
+
+    def loglike(self, d, x, arrays, order: int | None = None):
+        """log L at the expansion-coordinate offset ``d`` and parameters ``x``."""
+        from gpucosmo.likelihoods.cobaya.planck_python import _sz_prior
+
+        ps = monomials(arrays["A"] @ d, self.order)
+        if order is not None and order < self.order:
+            ps = jnp.where(jnp.arange(ps.shape[-1]) < n_terms(self.n, order), ps, 0.0)
+        c = self.coefficients(ps, x, tables=arrays["fg"])
+        e = (c - arrays["c_ref"]) / arrays["sc"]
+        quad = jnp.dot(e, arrays["M64"] @ e) if "M64" in arrays else _quad32(arrays["M32"], e)
+        ll = -0.5 * (arrays["q0"] - 2.0 * jnp.dot(arrays["hs"], e) + quad)
+        if self.L.sz_prior:
+            inp = self._params(x)
+            ll = ll + _sz_prior(self.L._param(inp, "aksz"), self.L._param(inp, "asz143"))
+        return ll
+
+
 # ---------------------------------------------------------------- the compressed DALI likelihood
 class CompressedDALI:
     """DALI log-likelihood of ``bundle`` on the unclipped DALI expansion ``expansion``,
@@ -439,11 +700,23 @@ class CompressedDALI:
     the deviation, is ≲ 1e-9 of y in the posterior — float64 GEMMs run at 1/64 of the float32
     rate on consumer GPUs). The DESI FS tables carry each tracer's precision whitening, so the
     χ² and the marginalization need no n × n products.
+
+    ``sn``: "expanded" (default) evaluates the supernova χ² on the expansion's distance moduli with
+    the covariance folded into the coefficients (χ² = |Wᵀm − Σ_t φ_t Wᵀμ_t|², WWᵀ = C⁻¹); "exact"
+    computes the distances from the exact background at every point (float64 integrals and a dense
+    float64 product, the GPU-time majority of a DESI + CMB + SN analysis). ``camspec``: "compressed"
+    (default) evaluates CamSpec's χ² in the expansion basis (``CamSpecCompressed``); "direct" applies
+    its 9915 × 9915 inverse covariance at every point. ``act``: "projected" (default) folds the
+    ``act_dr6_lenslike`` port's binning and corrections into the coefficients of its bandpowers;
+    "direct" rebuilds the spectra to ℓ 3000 and calls the port. ``trim_shared``: evaluate the
+    built-in blocks the remaining likelihoods read (``requires``) only up to the largest multipole they
+    declare (``Likelihood.cmb_lmax``; e.g. ℓ ≤ 29 for the Planck low-ℓ ports).
     """
 
     def __init__(self, bundle, expansion, x_ref, *, log=print, use_cache: bool = True, hillipop_f64: bool = False,
                  expansion_f32: bool = True, background: str = "expansion", background_method: str = "fd",
-                 fs_f32: bool = True):
+                 fs_f32: bool = True, sn: str = "expanded", camspec: str = "compressed", camspec_f64: bool = False,
+                 act: str = "projected", trim_shared: bool = True):
         cfg = bundle.config
         I = bundle.internals
         if cfg.cmb not in (None, "pr4"):
@@ -507,7 +780,22 @@ class CompressedDALI:
         # redshifts) as expanded outputs too: the exact per-point θ → H0 Newton solve and its
         # quadratures were a third of the GPU time. Same design as the theory expansion
         # (``background_method`` "fd": 1σ finite-difference design; "fwd": forward mode).
-        self.bg_expansion = bool(cfg.desi_fs and background == "expansion" and I.sn_like is None)
+        if sn not in ("expanded", "exact"):
+            raise ValueError(f"sn must be 'expanded' or 'exact', not {sn!r}")
+        if camspec not in ("compressed", "direct"):
+            raise ValueError(f"camspec must be 'compressed' or 'direct', not {camspec!r}")
+        self.sn_mode = None
+        if I.sn_like is not None:
+            self.sn_mode = sn
+            if sn == "expanded":
+                if "sn" not in terms:
+                    raise ValueError("the DALI expansion has no supernova outputs: rebuild it (gpucosmo-dali-hmc "
+                                     "--stage build), or pass sn='exact'")
+                Wsn = psd_whitening(I.sn_like.invcov)
+                self.sn_wdata = jnp.asarray(np.asarray(I.sn_like.mag, dtype=np.float64) @ Wsn)
+                add("snw", np.asarray(terms["sn"]["mu"], dtype=np.float64) @ Wsn)
+        self.bg_expansion = bool(cfg.desi_fs and background == "expansion"
+                                 and (I.sn_like is None or self.sn_mode == "expanded"))
         if self.bg_expansion:
             for k, v in self._background_terms(bundle, expansion, nt, background_method).items():
                 add(f"bg:{k}", v)
@@ -519,10 +807,27 @@ class CompressedDALI:
         self.ext_tree = {}
         te = terms.get("ext", {})
         nondiff = [L for L in self.extra if not getattr(L, "differentiable", True)]
+        if act not in ("projected", "direct"):
+            raise ValueError(f"act must be 'projected' or 'direct', not {act!r}")
+        self.camspec, self.actp, needs = {}, {}, {}
         for L in self.extra:
             lab = L.label
             if not getattr(L, "differentiable", True):
                 continue  # a quadratic proxy (``_fit_proxies``)
+            if camspec == "compressed" and CamSpecCompressed.supports(L) and "cmb" in terms:
+                steps_u = np.asarray(bundle.dali.steps, dtype=np.float64).copy()
+                for i in self.log_idx:  # steps in the expansion coordinates
+                    steps_u[i] = steps_u[i] / float(expansion.x0[i])
+                self.camspec[lab] = CamSpecCompressed(L, terms["cmb"], bundle, x_ref, np.asarray(d_ref), self.order,
+                                                      steps_u, log=log, f64=camspec_f64)
+                continue
+            if act == "projected" and "cmb" in terms and act_port_projectable(L, terms["cmb"]):
+                add(f"actp:{lab}", act_port_terms(L, terms["cmb"]))
+                self.actp[lab] = dict(data=jnp.asarray(L.lens.data), offset=jnp.asarray(L.lens.offset),
+                                      cinv=jnp.asarray(L.lens.cinv))
+                self._check_act_port(L, terms["cmb"], np.asarray(monomials(jnp.asarray(d_ref), self.order)),
+                                     x_ref, log)
+                continue
             if L.has_theory():
                 if lab not in te:
                     raise ValueError(f"the DALI expansion has no outputs for likelihood {lab!r}: build it "
@@ -535,9 +840,17 @@ class CompressedDALI:
                         add(f"ext:{lab}:{i}", leaf)
                     self.ext_tree[lab] = (treedef, len(leaves))
             for r in L.requires:
-                for k, v in terms[r].items():
-                    if f"shared:{r}:{k}" not in self.slices:
-                        add(f"shared:{r}:{k}", v)
+                needs.setdefault(r, []).append(L.cmb_lmax() if (r == "cmb" and trim_shared) else None)
+        # the built-in blocks the remaining likelihoods read, to the largest multipole they declare
+        self.shared_lmax = {}
+        for r, lms in needs.items():
+            lmax = None if any(v is None for v in lms) else int(max(lms))
+            self.shared_lmax[r] = lmax
+            for k, v in terms[r].items():
+                v = np.asarray(v)
+                if lmax is not None and v.ndim >= 2 and v.shape[-1] > lmax + 1:
+                    v = v[..., :lmax + 1]
+                add(f"shared:{r}:{k}", v)
         if not cols and not nondiff:
             raise ValueError("compressed DALI likelihood: the analysis has no DALI-expanded outputs")
         if not cols:  # only proxies: a dummy block keeps the layout uniform
@@ -558,12 +871,33 @@ class CompressedDALI:
         self.data = {"x0": jnp.asarray(expansion.x0), "blocks": blocks}
         if hil_ref is not None:
             self.data["hil"] = hil_ref
+        if self.camspec:
+            self.data["camspec"] = {lab: c.arrays for lab, c in self.camspec.items()}
+        if self.actp:
+            self.data["actp"] = self.actp
         self.proxies = {}
         if nondiff:
             self._fit_proxies(bundle, expansion, x_ref, nondiff, log)
             self.data["proxy"] = {lab: p.arrays for lab, p in self.proxies.items()}
         log(f"compressed DALI likelihood: {self.n_out} reduced outputs × {nt} expansion terms"
             + (f"; HiLLiPoP K = {self.hil.K}" if self.hil is not None else ""))
+
+    @staticmethod
+    def _check_act_port(L, cmb_terms, phi_ref, x_ref, log):
+        """The projected bandpowers' log L against the port's own at the reference spectra."""
+        from gpucosmo.jax.inference.mg_bundle import shared_block
+        from gpucosmo.likelihoods.base import LikelihoodInputs
+
+        x = np.asarray(cmb_terms["cmb_x"], dtype=np.float64)
+        b = phi_ref @ act_port_terms(L, cmb_terms) + np.asarray(L.lens.offset)
+        r = np.asarray(L.lens.data) - b
+        ll_proj = float(-0.5 * r @ np.asarray(L.lens.cinv) @ r)
+        shared = {"cmb": shared_block("cmb", {"cmb": {"cmb_x": jnp.asarray(np.einsum("t,txl->xl", phi_ref, x))}})}
+        ll_port = float(L.loglike(LikelihoodInputs(theory=None, params={}, cosmo=None, shared=shared)))
+        log(f"projected {L.label}: {x.shape[0]} terms → {r.size} bandpowers; log L at the reference "
+            f"{ll_proj:.6f} (port {ll_port:.6f})")
+        if not abs(ll_proj - ll_port) < 1e-6 * max(1.0, abs(ll_port)):
+            raise ValueError(f"projected {L.label} differs from the port at the reference: {ll_proj} vs {ll_port}")
 
     def _fit_proxies(self, bundle, expansion, x_ref, nondiff, log, chunk: int = 128):
         """Quadratic proxies (``cobaya_bridge.nondiff``) of the non-differentiable likelihoods in
@@ -636,7 +970,8 @@ class CompressedDALI:
 
         I, b = self.I, self.bundle
         x = jnp.asarray(x, dtype=jnp.float64)
-        phi = monomials(expansion_coord(x[:self.n], self.log_idx) - expansion_coord(data["x0"], self.log_idx), self.order)
+        dx = expansion_coord(x[:self.n], self.log_idx) - expansion_coord(data["x0"], self.log_idx)
+        phi = monomials(dx, self.order)
         if order is not None and order < self.order:
             phi = jnp.where(jnp.arange(self.nt) < n_terms(self.n, order), phi, 0.0)
         y = (phi, data["blocks"])
@@ -665,7 +1000,7 @@ class CompressedDALI:
             else:
                 parts["act_lens"] = I.lens_ll(self._get(y, "dl_kk"))
         with jax.named_scope("background"):
-            need_c = I.sn_like is not None or (b.config.desi_fs and not self.bg_expansion)
+            need_c = self.sn_mode == "exact" or (b.config.desi_fs and not self.bg_expansion)
             c = b.cosmo(x) if need_c else None
         if b.config.desi_fs:
             from gpucosmo.jax.fullshape.desi_dr1 import FS_TRACERS
@@ -684,7 +1019,11 @@ class CompressedDALI:
             with jax.named_scope("desi_fs"):
                 parts["desi_fs"] = fs_loglike_whitened(I.fs_like, inp, nuis, tw, s8, f8, self.fs_white,
                                                        dtype=self.fs_dtype)
-        if I.sn_like is not None:
+        if self.sn_mode == "expanded":
+            with jax.named_scope("sn"):
+                r = self.sn_wdata - self._get(y, "snw")
+                parts["sn"] = -0.5 * r @ r
+        elif self.sn_mode == "exact":
             parts["sn"] = I.sn_like(BackgroundParams.build(c["ombh2"], c["omch2"], 100.0 * c["h"], c["w0"],
                                                            c["wa"], ext=c.get("ext")))
         if self.extra:
@@ -696,6 +1035,15 @@ class CompressedDALI:
             for L in self.extra:
                 lab = L.label
                 with jax.named_scope(f"ext_{lab}"):
+                    if lab in self.camspec:
+                        parts[lab] = self.camspec[lab].loglike(dx, x, data["camspec"][lab], order=order)
+                        continue
+                    if lab in self.actp:
+                        a = data["actp"][lab]
+                        r = a["data"] - (self._get(y, f"actp:{lab}") + a["offset"])
+                        ll = -0.5 * r @ (a["cinv"] @ r)
+                        parts[lab] = jnp.where(jnp.isnan(ll), -jnp.inf, ll)
+                        continue
                     if lab in self.proxies:
                         parts[lab] = self.proxies[lab](x, data["proxy"][lab])
                         continue
@@ -732,6 +1080,7 @@ def direct_components(bundle, tt, x, *, clipped: bool = False) -> dict:
     return parts
 
 
-__all__ = ["CompressedDALI", "HillipopCompressed", "MODES", "direct_components", "fs_loglike_whitened",
+__all__ = ["CamSpecCompressed", "CompressedDALI", "HillipopCompressed", "act_port_projectable",
+           "act_port_terms", "psd_whitening", "MODES", "direct_components", "fs_loglike_whitened",
            "fs_loglike_windowed", "fs_whitening", "marginalize_whitened",
            "hillipop_fg_terms"]

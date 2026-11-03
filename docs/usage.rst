@@ -66,7 +66,11 @@ from order 2 to 3. From order 4 on, the check therefore also reports p − 2 →
 
 ``gpucosmo.jax.inference.dali_reduce.CompressedDALI`` applies every likelihood's linear algebra
 to the expansion's coefficients once, so a DALI log L + gradient costs microseconds per point
-on a GPU. This is what the SMC engine samples. Its cost grows with the number of monomials,
+on a GPU. Supernova distances are expanded like the other theory outputs, and the Gaussian
+likelihoods are projected onto the coefficients (CamSpec: ``CamSpecCompressed``; the ACT DR6
+lensing port: its bandpowers), so no background or Boltzmann quantity is computed per point.
+Likelihoods that read the built-in spectra declare the largest multipole they use
+(``Likelihood.cmb_lmax``), and the spectra are evaluated only that far. This is what the SMC engine samples. Its cost grows with the number of monomials,
 C(n + p, p) for n theory parameters at order p (45 at second and 165 at third order for n = 8).
 
 Evidence

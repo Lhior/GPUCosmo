@@ -377,6 +377,9 @@ Performance
   times (~6 µs per point for the full DESI + Planck + ACT analysis on a laptop GPU).
 * Prefer ``GaussianLikelihood`` without ``vector`` when the data allow it: it gets the
   whitened fast path.
+* If ``loglike`` reads the built-in ``"cmb"`` block (``requires``), override ``cmb_lmax()`` to
+  return the largest multipole it uses: the compressed DALI likelihood then evaluates the shared
+  spectra only that far (otherwise to ℓ ≈ 4000 at every point).
 * Avoid ``inp.cosmo`` in ``loglike`` for analyses with a CMB likelihood: each use costs a
   θ* → H0 solve per point in the compressed DALI likelihood.
 
